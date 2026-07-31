@@ -1,7 +1,8 @@
 /* ═══════════════════════════════════════════════
-   IdeaEngine — Application Logic (v2.2)
-   - Deterministic Seeding PRNG (Stable data per query)
-   - YouTube Data API v3 Integration (Live data mode)
+   IdeaEngine — Application Logic (v2.3)
+   - Strict Topic-Seeded PRNG (Fixed metrics & search volume)
+   - 12 Video Grid Output
+   - Clean Full-Color Thumbnails (No tint overlay)
    ═══════════════════════════════════════════════ */
 
 // ─── DOM References ───
@@ -142,7 +143,7 @@ async function runGenerate() {
       renderResults(data);
       loadingState.classList.remove('visible');
       resultsContainer.classList.add('visible');
-    }, 800);
+    }, 600);
   }
 }
 
@@ -210,7 +211,7 @@ function renderTitles(titles) {
   `).join('');
 }
 
-// ─── Video Cards ───
+// ─── Video Cards (Clean Full Color, No Tint Overlay) ───
 function renderVideos(videos) {
   videoGrid.innerHTML = videos.map(v => {
     const tier      = getOutlierTier(v.outlier);
@@ -222,7 +223,6 @@ function renderVideos(videos) {
         <div class="video-thumb">
           <a href="${videoUrl}" target="_blank" rel="noopener" class="video-thumb-link">
             <img class="video-thumb-img" src="${v.thumbUrl}" alt="" loading="lazy">
-            <div class="video-thumb-tint tint--${tier.key}"></div>
             <span class="outlier-pin outlier-pin--${tier.key}">${tier.icon} ${v.outlier.toFixed(1)}x</span>
             <div class="play-badge">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -291,8 +291,8 @@ async function fetchLiveYouTubeData(topic, filters, apiKey) {
   publishedAfterDate.setDate(publishedAfterDate.getDate() - filters.timeWindow);
   const publishedAfterIso = publishedAfterDate.toISOString();
 
-  // 1. Search Videos
-  const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(topic)}&type=video&publishedAfter=${publishedAfterIso}&maxResults=25&key=${apiKey}`;
+  // Search up to 50 videos for 12 video cards
+  const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(topic)}&type=video&publishedAfter=${publishedAfterIso}&maxResults=50&key=${apiKey}`;
   const searchRes = await fetch(searchUrl);
   const searchData = await searchRes.json();
 
@@ -308,21 +308,18 @@ async function fetchLiveYouTubeData(topic, filters, apiKey) {
   const videoIds = items.map(i => i.id.videoId).join(',');
   const channelIds = [...new Set(items.map(i => i.snippet.channelId))].join(',');
 
-  // 2. Fetch Video Details & Statistics
   const videoDetailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds}&key=${apiKey}`;
   const videoDetailsRes = await fetch(videoDetailsUrl);
   const videoDetailsData = await videoDetailsRes.json();
   const videoDetailsMap = {};
   (videoDetailsData.items || []).forEach(v => { videoDetailsMap[v.id] = v; });
 
-  // 3. Fetch Channel Details & Subscriber Counts
   const channelDetailsUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelIds}&key=${apiKey}`;
   const channelDetailsRes = await fetch(channelDetailsUrl);
   const channelDetailsData = await channelDetailsRes.json();
   const channelDetailsMap = {};
   (channelDetailsData.items || []).forEach(c => { channelDetailsMap[c.id] = c; });
 
-  // 4. Filter & Process Video Objects
   let processedVideos = [];
   let totalVph = 0;
 
@@ -333,7 +330,6 @@ async function fetchLiveYouTubeData(topic, filters, apiKey) {
     if (!vDetail || !cDetail) return;
 
     const subCount = parseInt(cDetail.statistics.subscriberCount || '0', 10);
-    // Filter on channel subscriber cap constraint
     if (subCount > filters.subCap) return;
 
     const viewCount = parseInt(vDetail.statistics.viewCount || '0', 10);
@@ -345,7 +341,6 @@ async function fetchLiveYouTubeData(topic, filters, apiKey) {
     const vph = Math.round(viewCount / hoursPublished);
     totalVph += vph;
 
-    // Outlier calculation: ratio of views to estimated channel average (subcount baseline proxy)
     const channelAvgEstimate = Math.max(500, subCount * 0.15);
     const outlier = parseFloat((viewCount / channelAvgEstimate).toFixed(1));
 
@@ -370,23 +365,20 @@ async function fetchLiveYouTubeData(topic, filters, apiKey) {
     });
   });
 
-  // Filter on VPH direction if rising selected
   if (filters.vphDirection === 'rising') {
     const risingOnly = processedVideos.filter(v => v.vphDirection === 'rising');
-    if (risingOnly.length >= 3) processedVideos = risingOnly;
+    if (risingOnly.length >= 6) processedVideos = risingOnly;
   }
 
-  // Sort by outlier score
   processedVideos.sort((a, b) => b.outlier - a.outlier);
-  const top5Videos = processedVideos.slice(0, 5);
+  const top12Videos = processedVideos.slice(0, 12);
 
-  // Keyword score computation based on YouTube search response
   const volumeNumber = Math.min(300000, items.length * 12000);
   const volumeLevel = volumeNumber > 100000 ? 'High' : volumeNumber > 30000 ? 'Medium' : 'Low';
-  const competitionLevel = items.length > 15 ? 'High' : items.length > 8 ? 'Medium' : 'Low';
+  const competitionLevel = items.length > 25 ? 'High' : items.length > 12 ? 'Medium' : 'Low';
   const competitionDesc = competitionLevel === 'Low' ? 'Few strong competitors' :
                           competitionLevel === 'Medium' ? 'Moderate competition' : 'Saturated — hard to rank';
-  const overallScore = Math.min(95, Math.max(30, Math.round(85 - items.length * 2.2)));
+  const overallScore = Math.min(95, Math.max(30, Math.round(85 - items.length * 1.5)));
   const overallLabel = overallScore >= 80 ? 'Very High — great opportunity' :
                        overallScore >= 60 ? 'High — worth targeting' : 'Moderate — competitive';
 
@@ -397,21 +389,21 @@ async function fetchLiveYouTubeData(topic, filters, apiKey) {
     competitionDesc,
     overallScore,
     overallLabel,
-    avgVph: top5Videos.length ? Math.round(totalVph / top5Videos.length) : 150
+    avgVph: top12Videos.length ? Math.round(totalVph / top12Videos.length) : 150
   };
 
-  // Generate titles grounded in top video patterns
-  const titles = generateGroundedTitles(topic, top5Videos);
+  const titles = generateGroundedTitles(topic, top12Videos);
 
-  return { keywords, titles, videos: top5Videos };
+  return { keywords, titles, videos: top12Videos };
 }
 
-// ─── DETERMINISTIC PSEUDO-RANDOM ENGINE ───
-// Seeded PRNG guarantees the exact same topic string yields identical metrics every search.
-function createPRNG(seedString) {
+// ─── STRICT TOPIC-SEEDED PRNG ENGINE ───
+// Seed is STRICTLY derived from topic.toLowerCase().trim() so keyword volume and search stats NEVER change on re-search!
+function createTopicPRNG(topicString) {
+  const normalized = topicString.toLowerCase().trim();
   let hash = 0;
-  for (let i = 0; i < seedString.length; i++) {
-    hash = (hash << 5) - hash + seedString.charCodeAt(i);
+  for (let i = 0; i < normalized.length; i++) {
+    hash = (hash << 5) - hash + normalized.charCodeAt(i);
     hash |= 0;
   }
   return function() {
@@ -423,8 +415,8 @@ function createPRNG(seedString) {
 }
 
 function generateDeterministicData(topic, filters) {
-  const seedKey = `${topic.toLowerCase().trim()}_${filters.subCap}_${filters.timeWindow}_${filters.vphDirection}`;
-  const rng = createPRNG(seedKey);
+  // Use topic string strictly for PRNG
+  const rng = createTopicPRNG(topic);
 
   const topicCap = topic.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
@@ -432,8 +424,8 @@ function generateDeterministicData(topic, filters) {
   const randFloat = (min, max, dec = 1) => parseFloat((rng() * (max - min) + min).toFixed(dec));
   const randPick = (arr) => arr[Math.floor(rng() * arr.length)];
 
-  // Keyword Data
-  const volumeNum = randInt(12000, 260000);
+  // Keyword Data — FIXED FOR TOPIC
+  const volumeNum = randInt(18000, 280000);
   const volumeLevel = volumeNum > 100000 ? 'High' : volumeNum > 30000 ? 'Medium' : 'Low';
   const compRoll = rng();
   const competitionLevel = compRoll < 0.35 ? 'Low' : compRoll < 0.7 ? 'Medium' : 'High';
@@ -442,12 +434,14 @@ function generateDeterministicData(topic, filters) {
 
   let overallScore;
   if (volumeLevel === 'High' && competitionLevel === 'Low') overallScore = randInt(80, 95);
-  else if (volumeLevel === 'High' && competitionLevel === 'Medium') overallScore = randInt(60, 78);
+  else if (volumeLevel === 'High' && competitionLevel === 'Medium') overallScore = randInt(62, 78);
   else if (volumeLevel === 'Medium' && competitionLevel === 'Low') overallScore = randInt(65, 82);
-  else overallScore = randInt(35, 58);
+  else overallScore = randInt(38, 58);
 
   const overallLabel = overallScore >= 80 ? 'Very High — great opportunity' :
                        overallScore >= 60 ? 'High — worth targeting' : 'Moderate — competitive';
+
+  const avgVph = randInt(80, 750);
 
   const keywords = {
     volumeLevel,
@@ -456,10 +450,10 @@ function generateDeterministicData(topic, filters) {
     competitionDesc,
     overallScore,
     overallLabel,
-    avgVph: randInt(60, 750)
+    avgVph
   };
 
-  // Scored titles
+  // Scored titles — FIXED FOR TOPIC
   const titlePatterns = [
     (t) => `I Tried ${t} for 30 Days — Here's What Actually Happened`,
     (t) => `${t}: The Complete Beginner's Guide (${new Date().getFullYear()})`,
@@ -491,22 +485,38 @@ function generateDeterministicData(topic, filters) {
     titles.push({
       title: titlePatterns[idx](topicCap),
       context: contextPatterns[idx](topicCap),
-      score: Math.max(45, Math.min(98, randInt(65, 96) - titles.length * 4))
+      score: Math.max(45, Math.min(98, randInt(68, 96) - titles.length * 3))
     });
   }
   titles.sort((a, b) => b.score - a.score);
 
-  // Top 5 Videos to Study
+  // 12 Top Videos to Study
   const channelPool = [
     'SimpleTech', 'The Curious Creator', 'LifeWithMike', 'MinimalMind', 'DailyDose',
     'Alex Explains', 'ProTips Daily', 'Real Talk with Sam', 'The Side Project', 'NerdNest',
-    'BudgetBoss', 'The Honest Review', 'CreatorLab', 'SmartStart', 'TinyDesk Studio'
+    'BudgetBoss', 'The Honest Review', 'CreatorLab', 'SmartStart', 'TinyDesk Studio',
+    'Pixel & Pen', 'NoFluff Guide', 'Everyday Experiments', 'FocusForge', 'Clarity Co.'
+  ];
+
+  const videoTitleTemplates = [
+    (t) => `I Finally Figured Out ${t} (and it changed everything)`,
+    (t) => `${t} — My ${randInt(3,12)} Month Update`,
+    (t) => `Watch This Before You Try ${t}`,
+    (t) => `How ${t} Actually Works in ${new Date().getFullYear()}`,
+    (t) => `${t} for Under $${randInt(20,200)} — Full Guide`,
+    (t) => `${randInt(5,15)} ${t} Hacks Nobody Shares`,
+    (t) => `${t}: Everything I Got Wrong`,
+    (t) => `The BEST Way to Do ${t} (Not What You Think)`,
+    (t) => `Why I Quit ${t} (Then Started Again)`,
+    (t) => `${t} — Beginner vs Pro Setup`,
+    (t) => `Testing the Most Viral ${t} Techniques`,
+    (t) => `${t} Explained in 10 Minutes`
   ];
 
   const videos = [];
   const usedChannels = new Set();
 
-  while (videos.length < 5) {
+  while (videos.length < 12) {
     const ch = randPick(channelPool);
     if (usedChannels.has(ch)) continue;
     usedChannels.add(ch);
@@ -521,10 +531,11 @@ function generateDeterministicData(topic, filters) {
     const commentCount = Math.floor(viewCount * randFloat(0.004, 0.015, 3));
 
     const thumbSeed = `${topicCap}-${ch}-${videos.length}`;
+    const vTitle = videoTitleTemplates[videos.length % videoTitleTemplates.length](topicCap);
 
     videos.push({
       id: `mock-${videos.length}`,
-      title: `${topicCap} — What I Learned After ${randInt(1, 12)} Months`,
+      title: vTitle,
       channel: ch,
       subs: formatNumber(subCount) + ' subs',
       outlier,
@@ -571,10 +582,6 @@ function generateGroundedTitles(topic, topVideos) {
     context: contexts[i],
     score: Math.max(50, 95 - i * 5)
   }));
-}
-
-function thumbUrlFor(seed) {
-  return `https://picsum.photos/seed/${encodeURIComponent(seed)}/480/270`;
 }
 
 function avatarUrlFor(channelName) {
