@@ -117,7 +117,7 @@ function renderKeywords(kw) {
     </div>
     <div class="kw-card kw-card--accent">
       <div class="kw-card-label">Overall Score</div>
-      <div class="kw-card-value">${kw.overallScore}<span style="font-size:0.875rem;color:var(--text-muted)">/100</span></div>
+      <div class="kw-card-value">${kw.overallScore}<span style="font-size:0.875rem;color:var(--paper-mute)">/100</span></div>
       <div class="kw-card-meta">${kw.overallLabel}</div>
     </div>
     <div class="kw-card">
@@ -152,28 +152,28 @@ function renderTitles(titles) {
 // ─── Video Cards ───
 function renderVideos(videos) {
   videoGrid.innerHTML = videos.map(v => {
-    const outlierBadge = getOutlierBadge(v.outlier);
-    const vphBadge     = getVphBadge(v.vph, v.vphDirection);
+    const tier      = getOutlierTier(v.outlier);
+    const vphBadge  = getVphBadge(v.vph, v.vphDirection);
 
     return `
       <div class="video-card">
         <div class="video-thumb">
-          <div class="video-thumb-img" style="background: linear-gradient(135deg, ${v.thumbGradient[0]}, ${v.thumbGradient[1]}); display:flex; align-items:center; justify-content:center;">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.3)" stroke-width="1.5">
-              <rect x="2" y="3" width="20" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/>
-            </svg>
+          <img class="video-thumb-img" src="${v.thumbUrl}" alt="" loading="lazy">
+          <div class="video-thumb-tint tint--${tier.key}"></div>
+          <span class="outlier-pin outlier-pin--${tier.key}">${tier.icon} ${v.outlier.toFixed(1)}x</span>
+          <div class="play-badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           </div>
           <span class="video-duration">${v.duration}</span>
         </div>
         <div class="video-info">
           <div class="video-title">${escapeHtml(v.title)}</div>
           <div class="video-channel-row">
-            <span class="channel-avatar">${v.channelInitial}</span>
+            <span class="channel-avatar"><img src="${v.avatarUrl}" alt="" loading="lazy"></span>
             <span class="channel-name">${escapeHtml(v.channel)}</span>
             <span class="channel-subs">${v.subs}</span>
           </div>
           <div class="video-badges">
-            ${outlierBadge}
             ${vphBadge}
             <span class="badge badge--views">
               <svg class="badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -201,22 +201,11 @@ function renderVideos(videos) {
 
 
 // ─── Badge Helpers ───
-function getOutlierBadge(outlier) {
-  let cls, icon;
-  if (outlier >= 10) {
-    cls = 'badge--outlier-high';
-    icon = '🔴';
-  } else if (outlier >= 5) {
-    cls = 'badge--outlier-mid';
-    icon = '🟣';
-  } else if (outlier >= 2) {
-    cls = 'badge--outlier-low';
-    icon = '🔵';
-  } else {
-    cls = 'badge--outlier-base';
-    icon = '⚫';
-  }
-  return `<span class="badge ${cls}">${icon} ${outlier.toFixed(1)}x outlier</span>`;
+function getOutlierTier(outlier) {
+  if (outlier >= 10) return { key: 'high', icon: '🔴' };
+  if (outlier >= 5)  return { key: 'mid',  icon: '🟣' };
+  if (outlier >= 2)  return { key: 'low',  icon: '🔵' };
+  return { key: 'base', icon: '⚫' };
 }
 
 function getVphBadge(vph, direction) {
@@ -230,6 +219,17 @@ function getVphBadge(vph, direction) {
   return `<span class="badge ${cls}">
     ${arrow} ${vph.toLocaleString()}/hr
   </span>`;
+}
+
+
+// ─── Thumbnail & Avatar Generation ───
+function thumbUrlFor(seed) {
+  return `https://picsum.photos/seed/${encodeURIComponent(seed)}/480/270`;
+}
+
+function avatarUrlFor(channelName) {
+  const bg = 'ffb020,4a9eff,b565f5,34d399,75747c';
+  return `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(channelName)}&backgroundColor=${bg}`;
 }
 
 
@@ -273,9 +273,6 @@ function randomAgo(maxDays) {
 
 
 // ─── Mock Data Generator ───
-// This is where you'd plug in real API calls (vidIQ, YouTube Data API, etc.)
-// For now it generates realistic-looking data themed to whatever topic the user enters.
-
 const TITLE_PATTERNS = [
   (t) => `I Tried ${t} for 30 Days — Here's What Actually Happened`,
   (t) => `${t}: The Complete Beginner's Guide (${new Date().getFullYear()})`,
@@ -314,24 +311,9 @@ const CHANNEL_NAMES = [
   'Unbox Reality', 'FocusForge', 'The Deep Dive', 'Clarity Co.', 'One Take Wonder',
 ];
 
-const THUMB_GRADIENTS = [
-  ['#1a1a2e', '#16213e'],
-  ['#0f0c29', '#302b63'],
-  ['#1e1e2f', '#2d2d44'],
-  ['#0d1117', '#161b22'],
-  ['#1a1423', '#2a1f3d'],
-  ['#141e30', '#243b55'],
-  ['#0c0c1d', '#1a1a3e'],
-  ['#1b1b2f', '#162447'],
-  ['#1f1c2c', '#928dab'],
-  ['#0f2027', '#203a43'],
-];
-
 function generateMockData(topic, filters) {
-  // Capitalize topic nicely
   const topicCap = topic.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
-  // Keyword data
   const volumeNum = randomBetween(8000, 280000);
   const volumeLevel = volumeNum > 100000 ? 'High' : volumeNum > 30000 ? 'Medium' : 'Low';
   const compRoll = Math.random();
@@ -361,7 +343,6 @@ function generateMockData(topic, filters) {
     avgVph: randomBetween(40, 680)
   };
 
-  // Generate titles (pick 6 unique patterns)
   const usedPatterns = new Set();
   const titles = [];
   while (titles.length < 6) {
@@ -374,10 +355,8 @@ function generateMockData(topic, filters) {
       score: Math.max(40, Math.min(98, randomBetween(55, 96) - titles.length * randomBetween(1, 5)))
     });
   }
-  // Sort by score descending
   titles.sort((a, b) => b.score - a.score);
 
-  // Generate 5 video cards
   const usedChannels = new Set();
   const videos = [];
   while (videos.length < 5) {
@@ -397,7 +376,6 @@ function generateMockData(topic, filters) {
     const likeCount = Math.floor(viewCount * randomFloat(0.03, 0.08, 2));
     const commentCount = Math.floor(viewCount * randomFloat(0.003, 0.015, 3));
 
-    // Generate video titles using the topic
     const videoTitleTemplates = [
       `I Finally Figured Out ${topicCap} (and it changed everything)`,
       `${topicCap} — My ${randomBetween(3,12)} Month Update`,
@@ -410,6 +388,8 @@ function generateMockData(topic, filters) {
       `Why I Quit ${topicCap} (Then Started Again)`,
       `${topicCap} — Beginner vs Pro Setup`,
     ];
+
+    const thumbSeed = `${topic}-${ch}-${videos.length}-${randomBetween(0, 99999)}`;
 
     videos.push({
       title: pick(videoTitleTemplates),
@@ -424,11 +404,11 @@ function generateMockData(topic, filters) {
       comments: formatNumber(commentCount),
       duration: randomDuration(),
       publishedAgo: randomAgo(filters.timeWindow),
-      thumbGradient: pick(THUMB_GRADIENTS)
+      thumbUrl: thumbUrlFor(thumbSeed),
+      avatarUrl: avatarUrlFor(ch)
     });
   }
 
-  // Sort by outlier score descending
   videos.sort((a, b) => b.outlier - a.outlier);
 
   return { keywords, titles, videos };
