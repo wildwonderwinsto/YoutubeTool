@@ -1,14 +1,13 @@
 /* ═══════════════════════════════════════════════
-   IdeaEngine — Application Logic (v2.3)
-   - Strict Topic-Seeded PRNG (Fixed metrics & search volume)
-   - 12 Video Grid Output
-   - Clean Full-Color Thumbnails (No tint overlay)
+   IdeaEngine — Application Logic (v3.0)
+   - Professional Granular Filters (Min/Max Subs, Days, Views, Outliers)
+   - Dynamic Sorting (Outlier, VPH, Views, Newest)
+   - Quick Presets & Filter Drawer
    ═══════════════════════════════════════════════ */
 
 // ─── DOM References ───
 const topicInput          = document.getElementById('topic-input');
 const generateBtn         = document.getElementById('generate-btn');
-const filterRow           = document.getElementById('filter-row');
 const loadingState        = document.getElementById('loading-state');
 const loadingMainText     = document.getElementById('loading-main-text');
 const loadingSubText      = document.getElementById('loading-sub-text');
@@ -17,6 +16,7 @@ const emptyState          = document.getElementById('empty-state');
 const keywordCards        = document.getElementById('keyword-cards');
 const titlesList          = document.getElementById('titles-list');
 const videoGrid           = document.getElementById('video-grid');
+const resultCountTag      = document.getElementById('result-count-tag');
 
 const apiToggleBtn        = document.getElementById('api-toggle-btn');
 const apiStatusText       = document.getElementById('api-status-text');
@@ -27,13 +27,45 @@ const clearApiKeyBtn      = document.getElementById('clear-api-key-btn');
 const apiModeBadge        = document.getElementById('api-mode-badge');
 const scanModeIndicator   = document.getElementById('scan-mode-indicator');
 
-// ─── State ───
-const filters = {
-  subCap: 100000,
-  timeWindow: 90,
-  vphDirection: 'rising'
+// Filter & Sort DOM
+const sortSelect          = document.getElementById('sort-select');
+const filterDrawerToggle  = document.getElementById('filter-drawer-toggle');
+const activeFilterBadge   = document.getElementById('active-filter-badge');
+const filterDrawer        = document.getElementById('filter-drawer');
+const closeDrawerBtn      = document.getElementById('close-drawer-btn');
+
+const minSubsInput        = document.getElementById('min-subs-input');
+const maxSubsInput        = document.getElementById('max-subs-input');
+const minDaysInput        = document.getElementById('min-days-input');
+const maxDaysInput        = document.getElementById('max-days-input');
+const minViewsInput       = document.getElementById('min-views-input');
+const maxViewsInput       = document.getElementById('max-views-input');
+const minOutlierSelect    = document.getElementById('min-outlier-select');
+const vphSegmented        = document.getElementById('vph-segmented');
+
+const subsValDisplay      = document.getElementById('subs-val-display');
+const daysValDisplay      = document.getElementById('days-val-display');
+const viewsValDisplay     = document.getElementById('views-val-display');
+
+const resetFiltersBtn     = document.getElementById('reset-filters-btn');
+const applyFiltersBtn     = document.getElementById('apply-filters-btn');
+const presetChips         = document.querySelectorAll('.preset-chip');
+
+// ─── Filter & Sort State ───
+const defaultFilters = {
+  minSubs: 0,
+  maxSubs: 100000,
+  minDays: 0,
+  maxDays: 90,
+  minViews: 1000,
+  maxViews: 10000000,
+  minOutlier: 2,
+  vphDirection: 'rising',
+  sortBy: 'outlier'
 };
 
+let activeFilters = { ...defaultFilters };
+let lastRawData = null; // Cache last scan results so sort/filter applies instantly!
 let userApiKey = localStorage.getItem('ideaengine_yt_apikey') || '';
 
 // ─── API Key UI Management ───
@@ -55,9 +87,7 @@ function updateApiKeyUI() {
   }
 }
 
-apiToggleBtn.addEventListener('click', () => {
-  apiPanel.classList.toggle('hidden');
-});
+apiToggleBtn.addEventListener('click', () => apiPanel.classList.toggle('hidden'));
 
 saveApiKeyBtn.addEventListener('click', () => {
   const key = apiKeyInput.value.trim();
@@ -77,23 +107,115 @@ clearApiKeyBtn.addEventListener('click', () => {
 
 updateApiKeyUI();
 
-// ─── Chip Interaction ───
-document.querySelectorAll('.chip-set').forEach(set => {
-  set.addEventListener('click', e => {
-    const chip = e.target.closest('.chip');
-    if (!chip) return;
-    set.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+// ─── Drawer & Filter Controls ───
+filterDrawerToggle.addEventListener('click', () => {
+  filterDrawer.classList.toggle('hidden');
+  filterDrawerToggle.classList.toggle('active', !filterDrawer.classList.contains('hidden'));
+});
+
+closeDrawerBtn.addEventListener('click', () => {
+  filterDrawer.classList.add('hidden');
+  filterDrawerToggle.classList.remove('active');
+});
+
+// Update Filter Card Text Displays
+function updateDisplayLabels() {
+  subsValDisplay.textContent = `${formatShortNum(activeFilters.minSubs)} – ${formatShortNum(activeFilters.maxSubs)}`;
+  daysValDisplay.textContent = `${activeFilters.minDays} – ${activeFilters.maxDays} days`;
+  viewsValDisplay.textContent = `${formatShortNum(activeFilters.minViews)} – ${activeFilters.maxViews >= 10000000 ? 'Any' : formatShortNum(activeFilters.maxViews)}`;
+  
+  // Calculate active filter count badge
+  let count = 0;
+  if (activeFilters.minSubs > 0 || activeFilters.maxSubs < 10000000) count++;
+  if (activeFilters.minDays > 0 || activeFilters.maxDays < 365) count++;
+  if (activeFilters.minViews > 0 || activeFilters.maxViews < 10000000) count++;
+  if (activeFilters.minOutlier > 1) count++;
+  if (activeFilters.vphDirection === 'rising') count++;
+  
+  activeFilterBadge.textContent = count;
+}
+
+// Preset Chips
+presetChips.forEach(chip => {
+  chip.addEventListener('click', () => {
+    presetChips.forEach(c => c.classList.remove('active'));
     chip.classList.add('active');
 
-    const parentId = set.id;
-    const val = chip.dataset.value;
-    if (parentId === 'sub-cap-chips')       filters.subCap = parseInt(val);
-    if (parentId === 'time-window-chips')   filters.timeWindow = parseInt(val);
-    if (parentId === 'vph-direction-chips') filters.vphDirection = val;
+    const preset = chip.dataset.preset;
+    if (preset === 'small-creators') {
+      activeFilters.minSubs = 0;
+      activeFilters.maxSubs = 100000;
+    } else if (preset === 'micro-creators') {
+      activeFilters.minSubs = 0;
+      activeFilters.maxSubs = 25000;
+    } else if (preset === 'high-velocity') {
+      activeFilters.vphDirection = 'rising';
+      activeFilters.minOutlier = 5;
+    } else if (preset === 'fresh-breakouts') {
+      activeFilters.minDays = 0;
+      activeFilters.maxDays = 30;
+      activeFilters.minOutlier = 2;
+    }
+
+    syncInputsFromState();
+    updateDisplayLabels();
+    if (lastRawData) applyFilterAndSortAndRender();
   });
 });
 
-// ─── Example Topic Chips ───
+function syncStateFromInputs() {
+  activeFilters.minSubs = parseInt(minSubsInput.value, 10) || 0;
+  activeFilters.maxSubs = parseInt(maxSubsInput.value, 10) || 10000000;
+  activeFilters.minDays = parseInt(minDaysInput.value, 10) || 0;
+  activeFilters.maxDays = parseInt(maxDaysInput.value, 10) || 365;
+  activeFilters.minViews = parseInt(minViewsInput.value, 10) || 0;
+  activeFilters.maxViews = parseInt(maxViewsInput.value, 10) || 100000000;
+  activeFilters.minOutlier = parseFloat(minOutlierSelect.value) || 1;
+}
+
+function syncInputsFromState() {
+  minSubsInput.value = activeFilters.minSubs;
+  maxSubsInput.value = activeFilters.maxSubs;
+  minDaysInput.value = activeFilters.minDays;
+  maxDaysInput.value = activeFilters.maxDays;
+  minViewsInput.value = activeFilters.minViews;
+  maxViewsInput.value = activeFilters.maxViews;
+  minOutlierSelect.value = activeFilters.minOutlier;
+  
+  vphSegmented.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.vph === activeFilters.vphDirection);
+  });
+}
+
+vphSegmented.addEventListener('click', e => {
+  const btn = e.target.closest('.seg-btn');
+  if (!btn) return;
+  vphSegmented.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeFilters.vphDirection = btn.dataset.vph;
+});
+
+sortSelect.addEventListener('change', () => {
+  activeFilters.sortBy = sortSelect.value;
+  if (lastRawData) applyFilterAndSortAndRender();
+});
+
+applyFiltersBtn.addEventListener('click', () => {
+  syncStateFromInputs();
+  updateDisplayLabels();
+  filterDrawer.classList.add('hidden');
+  filterDrawerToggle.classList.remove('active');
+  if (lastRawData) applyFilterAndSortAndRender();
+});
+
+resetFiltersBtn.addEventListener('click', () => {
+  activeFilters = { ...defaultFilters };
+  syncInputsFromState();
+  updateDisplayLabels();
+  if (lastRawData) applyFilterAndSortAndRender();
+});
+
+// Example Topic Chips
 document.querySelectorAll('.example-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     topicInput.value = chip.dataset.topic;
@@ -101,13 +223,13 @@ document.querySelectorAll('.example-chip').forEach(chip => {
   });
 });
 
-// ─── Generate Button ───
+// Generate Button
 generateBtn.addEventListener('click', runGenerate);
 topicInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') runGenerate();
 });
 
-// ─── Main Generate Flow ───
+// ─── Main Scan Flow ───
 async function runGenerate() {
   const topic = topicInput.value.trim();
   if (!topic) {
@@ -115,23 +237,26 @@ async function runGenerate() {
     return;
   }
 
+  syncStateFromInputs();
+  updateDisplayLabels();
+
   emptyState.classList.add('hidden');
   resultsContainer.classList.remove('visible');
   loadingState.classList.add('visible');
 
-  const subLabel = filters.subCap >= 1000000 ? '1M' : filters.subCap >= 500000 ? '500K' : '100K';
-  loadingSubText.textContent = `Filtering channels under ${subLabel} subs · last ${filters.timeWindow} days`;
+  const subLabel = formatShortNum(activeFilters.maxSubs);
+  loadingSubText.textContent = `Filtering channels under ${subLabel} subs · ${activeFilters.maxDays}d window`;
 
   if (userApiKey) {
     loadingMainText.textContent = 'Fetching live data from YouTube Data API v3...';
     try {
-      const data = await fetchLiveYouTubeData(topic, filters, userApiKey);
-      renderResults(data);
+      lastRawData = await fetchLiveYouTubeData(topic, activeFilters, userApiKey);
+      applyFilterAndSortAndRender();
     } catch (err) {
       console.error('YouTube API Error:', err);
       alert(`YouTube API Error: ${err.message}. Falling back to deterministic engine.`);
-      const data = generateDeterministicData(topic, filters);
-      renderResults(data);
+      lastRawData = generateDeterministicData(topic);
+      applyFilterAndSortAndRender();
     } finally {
       loadingState.classList.remove('visible');
       resultsContainer.classList.add('visible');
@@ -139,34 +264,50 @@ async function runGenerate() {
   } else {
     loadingMainText.textContent = 'Scanning breakout videos & scoring titles…';
     setTimeout(() => {
-      const data = generateDeterministicData(topic, filters);
-      renderResults(data);
+      lastRawData = generateDeterministicData(topic);
+      applyFilterAndSortAndRender();
       loadingState.classList.remove('visible');
       resultsContainer.classList.add('visible');
-    }, 600);
+    }, 500);
   }
 }
 
-// ─── Render Results ───
-function renderResults(data) {
-  renderKeywords(data.keywords);
-  renderTitles(data.titles);
-  renderVideos(data.videos);
+// Filter, Sort, & Render Pipeline
+function applyFilterAndSortAndRender() {
+  if (!lastRawData) return;
+
+  // Filter video list based on activeFilters
+  let filtered = lastRawData.videos.filter(v => {
+    if (v.rawSubs < activeFilters.minSubs || v.rawSubs > activeFilters.maxSubs) return false;
+    if (v.daysAgo < activeFilters.minDays || v.daysAgo > activeFilters.maxDays) return false;
+    if (v.rawViews < activeFilters.minViews || v.rawViews > activeFilters.maxViews) return false;
+    if (v.outlier < activeFilters.minOutlier) return false;
+    if (activeFilters.vphDirection === 'rising' && v.vphDirection !== 'rising') return false;
+    return true;
+  });
+
+  // Sort video list
+  if (activeFilters.sortBy === 'outlier') {
+    filtered.sort((a, b) => b.outlier - a.outlier);
+  } else if (activeFilters.sortBy === 'vph') {
+    filtered.sort((a, b) => b.vph - a.vph);
+  } else if (activeFilters.sortBy === 'views') {
+    filtered.sort((a, b) => b.rawViews - a.rawViews);
+  } else if (activeFilters.sortBy === 'newest') {
+    filtered.sort((a, b) => a.daysAgo - b.daysAgo);
+  }
+
+  resultCountTag.textContent = `${filtered.length} videos found`;
+
+  renderKeywords(lastRawData.keywords);
+  renderTitles(lastRawData.titles);
+  renderVideos(filtered);
 }
 
-// ─── Keyword Insight Cards ───
+// ─── Render Components ───
 function renderKeywords(kw) {
-  const qualityClass = (level) => {
-    if (level === 'High') return 'kw-card--good';
-    if (level === 'Medium') return 'kw-card--mid';
-    return 'kw-card--bad';
-  };
-
-  const competitionClass = (level) => {
-    if (level === 'Low') return 'kw-card--good';
-    if (level === 'Medium') return 'kw-card--mid';
-    return 'kw-card--bad';
-  };
+  const qualityClass = (level) => level === 'High' ? 'kw-card--good' : level === 'Medium' ? 'kw-card--mid' : 'kw-card--bad';
+  const competitionClass = (level) => level === 'Low' ? 'kw-card--good' : level === 'Medium' ? 'kw-card--mid' : 'kw-card--bad';
 
   keywordCards.innerHTML = `
     <div class="kw-card ${qualityClass(kw.volumeLevel)}">
@@ -192,7 +333,6 @@ function renderKeywords(kw) {
   `;
 }
 
-// ─── Generated Titles ───
 function renderTitles(titles) {
   titlesList.innerHTML = titles.map((t, i) => `
     <div class="title-card">
@@ -211,8 +351,17 @@ function renderTitles(titles) {
   `).join('');
 }
 
-// ─── Video Cards (Clean Full Color, No Tint Overlay) ───
 function renderVideos(videos) {
+  if (videos.length === 0) {
+    videoGrid.innerHTML = `
+      <div style="grid-column: 1 / -1; padding: 48px; text-align: center; color: var(--paper-mute); background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius-lg);">
+        <p style="font-family: var(--font-display); font-size: 1rem; margin-bottom: 8px; color: var(--paper);">No videos match your active filter criteria</p>
+        <p style="font-size: 0.8125rem;">Try adjusting subscriber limits, days window, or clicking <strong>Reset Defaults</strong>.</p>
+      </div>
+    `;
+    return;
+  }
+
   videoGrid.innerHTML = videos.map(v => {
     const tier      = getOutlierTier(v.outlier);
     const vphBadge  = getVphBadge(v.vph, v.vphDirection);
@@ -273,37 +422,25 @@ function getOutlierTier(outlier) {
 }
 
 function getVphBadge(vph, direction) {
-  let cls;
-  if (direction === 'rising')  cls = 'badge--vph-rising';
-  else if (direction === 'cooling') cls = 'badge--vph-cooling';
-  else cls = 'badge--vph-neutral';
-
+  let cls = direction === 'rising' ? 'badge--vph-rising' : direction === 'cooling' ? 'badge--vph-cooling' : 'badge--vph-neutral';
   const arrow = direction === 'rising' ? '↑' : direction === 'cooling' ? '↓' : '→';
-
-  return `<span class="badge ${cls}">
-    ${arrow} ${vph.toLocaleString()}/hr
-  </span>`;
+  return `<span class="badge ${cls}">${arrow} ${vph.toLocaleString()}/hr</span>`;
 }
 
 // ─── LIVE YOUTUBE API V3 INTEGRATION ───
 async function fetchLiveYouTubeData(topic, filters, apiKey) {
   const publishedAfterDate = new Date();
-  publishedAfterDate.setDate(publishedAfterDate.getDate() - filters.timeWindow);
+  publishedAfterDate.setDate(publishedAfterDate.getDate() - 180); // Fetch up to 180 days for client filtering
   const publishedAfterIso = publishedAfterDate.toISOString();
 
-  // Search up to 50 videos for 12 video cards
   const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(topic)}&type=video&publishedAfter=${publishedAfterIso}&maxResults=50&key=${apiKey}`;
   const searchRes = await fetch(searchUrl);
   const searchData = await searchRes.json();
 
-  if (searchData.error) {
-    throw new Error(searchData.error.message);
-  }
+  if (searchData.error) throw new Error(searchData.error.message);
 
   const items = searchData.items || [];
-  if (items.length === 0) {
-    throw new Error("No videos found for this topic/window.");
-  }
+  if (items.length === 0) throw new Error("No videos found for this topic.");
 
   const videoIds = items.map(i => i.id.videoId).join(',');
   const channelIds = [...new Set(items.map(i => i.snippet.channelId))].join(',');
@@ -330,34 +467,35 @@ async function fetchLiveYouTubeData(topic, filters, apiKey) {
     if (!vDetail || !cDetail) return;
 
     const subCount = parseInt(cDetail.statistics.subscriberCount || '0', 10);
-    if (subCount > filters.subCap) return;
-
     const viewCount = parseInt(vDetail.statistics.viewCount || '0', 10);
     const likeCount = parseInt(vDetail.statistics.likeCount || '0', 10);
     const commentCount = parseInt(vDetail.statistics.commentCount || '0', 10);
 
     const pubDate = new Date(vDetail.snippet.publishedAt);
+    const daysAgo = Math.max(0, Math.floor((new Date() - pubDate) / (1000 * 60 * 60 * 24)));
     const hoursPublished = Math.max(1, (new Date() - pubDate) / (1000 * 60 * 60));
     const vph = Math.round(viewCount / hoursPublished);
     totalVph += vph;
 
     const channelAvgEstimate = Math.max(500, subCount * 0.15);
     const outlier = parseFloat((viewCount / channelAvgEstimate).toFixed(1));
-
     const isRising = vph > 50;
 
     processedVideos.push({
       id: vId,
       title: vDetail.snippet.title,
       channel: vDetail.snippet.channelTitle,
+      rawSubs: subCount,
       subs: formatNumber(subCount) + ' subs',
       outlier,
       vph,
       vphDirection: isRising ? 'rising' : 'cooling',
+      rawViews: viewCount,
       views: formatNumber(viewCount),
       likes: formatNumber(likeCount),
       comments: formatNumber(commentCount),
       duration: parseIsoDuration(vDetail.contentDetails.duration),
+      daysAgo,
       publishedAgo: timeAgo(pubDate),
       thumbUrl: vDetail.snippet.thumbnails.high?.url || vDetail.snippet.thumbnails.medium?.url,
       avatarUrl: cDetail.snippet.thumbnails.default?.url || avatarUrlFor(vDetail.snippet.channelTitle),
@@ -365,22 +503,12 @@ async function fetchLiveYouTubeData(topic, filters, apiKey) {
     });
   });
 
-  if (filters.vphDirection === 'rising') {
-    const risingOnly = processedVideos.filter(v => v.vphDirection === 'rising');
-    if (risingOnly.length >= 6) processedVideos = risingOnly;
-  }
-
-  processedVideos.sort((a, b) => b.outlier - a.outlier);
-  const top12Videos = processedVideos.slice(0, 12);
-
   const volumeNumber = Math.min(300000, items.length * 12000);
   const volumeLevel = volumeNumber > 100000 ? 'High' : volumeNumber > 30000 ? 'Medium' : 'Low';
   const competitionLevel = items.length > 25 ? 'High' : items.length > 12 ? 'Medium' : 'Low';
-  const competitionDesc = competitionLevel === 'Low' ? 'Few strong competitors' :
-                          competitionLevel === 'Medium' ? 'Moderate competition' : 'Saturated — hard to rank';
+  const competitionDesc = competitionLevel === 'Low' ? 'Few strong competitors' : competitionLevel === 'Medium' ? 'Moderate competition' : 'Saturated — hard to rank';
   const overallScore = Math.min(95, Math.max(30, Math.round(85 - items.length * 1.5)));
-  const overallLabel = overallScore >= 80 ? 'Very High — great opportunity' :
-                       overallScore >= 60 ? 'High — worth targeting' : 'Moderate — competitive';
+  const overallLabel = overallScore >= 80 ? 'Very High — great opportunity' : overallScore >= 60 ? 'High — worth targeting' : 'Moderate — competitive';
 
   const keywords = {
     volumeLevel,
@@ -389,16 +517,15 @@ async function fetchLiveYouTubeData(topic, filters, apiKey) {
     competitionDesc,
     overallScore,
     overallLabel,
-    avgVph: top12Videos.length ? Math.round(totalVph / top12Videos.length) : 150
+    avgVph: processedVideos.length ? Math.round(totalVph / processedVideos.length) : 150
   };
 
-  const titles = generateGroundedTitles(topic, top12Videos);
+  const titles = generateGroundedTitles(topic);
 
-  return { keywords, titles, videos: top12Videos };
+  return { keywords, titles, videos: processedVideos };
 }
 
 // ─── STRICT TOPIC-SEEDED PRNG ENGINE ───
-// Seed is STRICTLY derived from topic.toLowerCase().trim() so keyword volume and search stats NEVER change on re-search!
 function createTopicPRNG(topicString) {
   const normalized = topicString.toLowerCase().trim();
   let hash = 0;
@@ -414,34 +541,24 @@ function createTopicPRNG(topicString) {
   };
 }
 
-function generateDeterministicData(topic, filters) {
-  // Use topic string strictly for PRNG
+function generateDeterministicData(topic) {
   const rng = createTopicPRNG(topic);
-
   const topicCap = topic.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
   const randInt = (min, max) => Math.floor(rng() * (max - min + 1)) + min;
   const randFloat = (min, max, dec = 1) => parseFloat((rng() * (max - min) + min).toFixed(dec));
   const randPick = (arr) => arr[Math.floor(rng() * arr.length)];
 
-  // Keyword Data — FIXED FOR TOPIC
+  // Fixed Keyword Data strictly per topic
   const volumeNum = randInt(18000, 280000);
   const volumeLevel = volumeNum > 100000 ? 'High' : volumeNum > 30000 ? 'Medium' : 'Low';
   const compRoll = rng();
   const competitionLevel = compRoll < 0.35 ? 'Low' : compRoll < 0.7 ? 'Medium' : 'High';
-  const competitionDesc = competitionLevel === 'Low' ? 'Few strong competitors' :
-                          competitionLevel === 'Medium' ? 'Moderate competition' : 'Saturated — hard to rank';
+  const competitionDesc = competitionLevel === 'Low' ? 'Few strong competitors' : competitionLevel === 'Medium' ? 'Moderate competition' : 'Saturated — hard to rank';
 
-  let overallScore;
-  if (volumeLevel === 'High' && competitionLevel === 'Low') overallScore = randInt(80, 95);
-  else if (volumeLevel === 'High' && competitionLevel === 'Medium') overallScore = randInt(62, 78);
-  else if (volumeLevel === 'Medium' && competitionLevel === 'Low') overallScore = randInt(65, 82);
-  else overallScore = randInt(38, 58);
-
-  const overallLabel = overallScore >= 80 ? 'Very High — great opportunity' :
-                       overallScore >= 60 ? 'High — worth targeting' : 'Moderate — competitive';
-
-  const avgVph = randInt(80, 750);
+  let overallScore = volumeLevel === 'High' && competitionLevel === 'Low' ? randInt(80, 95) : volumeLevel === 'High' ? randInt(62, 78) : randInt(45, 68);
+  const overallLabel = overallScore >= 80 ? 'Very High — great opportunity' : overallScore >= 60 ? 'High — worth targeting' : 'Moderate — competitive';
+  const avgVph = randInt(120, 750);
 
   const keywords = {
     volumeLevel,
@@ -453,7 +570,7 @@ function generateDeterministicData(topic, filters) {
     avgVph
   };
 
-  // Scored titles — FIXED FOR TOPIC
+  // Fixed Titles
   const titlePatterns = [
     (t) => `I Tried ${t} for 30 Days — Here's What Actually Happened`,
     (t) => `${t}: The Complete Beginner's Guide (${new Date().getFullYear()})`,
@@ -461,10 +578,7 @@ function generateDeterministicData(topic, filters) {
     (t) => `Why Nobody Talks About ${t} (The Truth)`,
     (t) => `${t} on a Budget — What $${randInt(50,300)} Gets You`,
     (t) => `I Tested Every ${t} Method So You Don't Have To`,
-    (t) => `The ${t} Mistake That's Costing You Hours`,
-    (t) => `How I ${t} (Step by Step for Beginners)`,
   ];
-
   const contextPatterns = [
     (t) => `Hook: personal challenge format + time constraint. Pairs well with before/after thumbnails.`,
     (t) => `Evergreen listicle — high search intent, targets "how to" queries. Strong for SEO.`,
@@ -472,116 +586,71 @@ function generateDeterministicData(topic, filters) {
     (t) => `Curiosity gap with authority framing — drives clicks from viewers wanting secrets.`,
     (t) => `Budget angle narrows audience to decision-stage viewers — high comment engagement.`,
     (t) => `Comparison/testing format — viewers stay to see the ultimate winner.`,
-    (t) => `Single-pain-point title — targets specific frustration for high watch time.`,
-    (t) => `Tutorial format with approachable framing — optimizes for YouTube search.`,
   ];
 
-  const titles = [];
-  const usedPatterns = new Set();
-  while (titles.length < 6) {
-    const idx = Math.floor(rng() * titlePatterns.length);
-    if (usedPatterns.has(idx)) continue;
-    usedPatterns.add(idx);
-    titles.push({
-      title: titlePatterns[idx](topicCap),
-      context: contextPatterns[idx](topicCap),
-      score: Math.max(45, Math.min(98, randInt(68, 96) - titles.length * 3))
-    });
-  }
-  titles.sort((a, b) => b.score - a.score);
+  const titles = titlePatterns.map((pat, i) => ({
+    title: pat(topicCap),
+    context: contextPatterns[i](topicCap),
+    score: Math.max(50, 95 - i * 5)
+  }));
 
-  // 12 Top Videos to Study
+  // Pool of 24 Videos spanning broad subcounts, days, views, and outliers
   const channelPool = [
     'SimpleTech', 'The Curious Creator', 'LifeWithMike', 'MinimalMind', 'DailyDose',
     'Alex Explains', 'ProTips Daily', 'Real Talk with Sam', 'The Side Project', 'NerdNest',
     'BudgetBoss', 'The Honest Review', 'CreatorLab', 'SmartStart', 'TinyDesk Studio',
-    'Pixel & Pen', 'NoFluff Guide', 'Everyday Experiments', 'FocusForge', 'Clarity Co.'
-  ];
-
-  const videoTitleTemplates = [
-    (t) => `I Finally Figured Out ${t} (and it changed everything)`,
-    (t) => `${t} — My ${randInt(3,12)} Month Update`,
-    (t) => `Watch This Before You Try ${t}`,
-    (t) => `How ${t} Actually Works in ${new Date().getFullYear()}`,
-    (t) => `${t} for Under $${randInt(20,200)} — Full Guide`,
-    (t) => `${randInt(5,15)} ${t} Hacks Nobody Shares`,
-    (t) => `${t}: Everything I Got Wrong`,
-    (t) => `The BEST Way to Do ${t} (Not What You Think)`,
-    (t) => `Why I Quit ${t} (Then Started Again)`,
-    (t) => `${t} — Beginner vs Pro Setup`,
-    (t) => `Testing the Most Viral ${t} Techniques`,
-    (t) => `${t} Explained in 10 Minutes`
+    'Pixel & Pen', 'NoFluff Guide', 'Everyday Experiments', 'FocusForge', 'Clarity Co.',
+    'Build & Scale', 'Design Craft', 'Code & Create', 'Vlog Vault'
   ];
 
   const videos = [];
-  const usedChannels = new Set();
+  for (let i = 0; i < 24; i++) {
+    const ch = channelPool[i % channelPool.length];
+    const subCount = i < 6 ? randInt(1500, 24000) : i < 16 ? randInt(25000, 95000) : randInt(120000, 450000);
+    const daysAgo = randInt(2, 120);
+    const isRising = i % 3 !== 0;
+    const outlier = randFloat(1.2, 28.0, 1);
+    const vph = isRising ? randInt(140, 1800) : randInt(15, 95);
+    const viewCount = randInt(15000, 1200000);
 
-  while (videos.length < 12) {
-    const ch = randPick(channelPool);
-    if (usedChannels.has(ch)) continue;
-    usedChannels.add(ch);
-
-    const subCount = randInt(filters.subCap <= 100000 ? 3000 : 15000, filters.subCap);
-    const isRising = filters.vphDirection === 'rising' ? true : rng() > 0.4;
-    const outlier = randFloat(1.5, 24.0, 1);
-    const vph = isRising ? randInt(120, 1500) : randInt(10, 90);
-
-    const viewCount = randInt(25000, 850000);
-    const likeCount = Math.floor(viewCount * randFloat(0.03, 0.08, 2));
-    const commentCount = Math.floor(viewCount * randFloat(0.004, 0.015, 3));
-
-    const thumbSeed = `${topicCap}-${ch}-${videos.length}`;
-    const vTitle = videoTitleTemplates[videos.length % videoTitleTemplates.length](topicCap);
+    const thumbSeed = `${topicCap}-${ch}-${i}`;
 
     videos.push({
-      id: `mock-${videos.length}`,
-      title: vTitle,
+      id: `mock-${i}`,
+      title: `${topicCap} — Breakout Insight ${i + 1}`,
       channel: ch,
+      rawSubs: subCount,
       subs: formatNumber(subCount) + ' subs',
       outlier,
       vph,
       vphDirection: isRising ? 'rising' : 'cooling',
+      rawViews: viewCount,
       views: formatNumber(viewCount),
-      likes: formatNumber(likeCount),
-      comments: formatNumber(commentCount),
+      likes: formatNumber(Math.floor(viewCount * 0.05)),
+      comments: formatNumber(Math.floor(viewCount * 0.008)),
       duration: `${randInt(6,22)}:${randInt(10,59)}`,
-      publishedAgo: `${randInt(5, 60)} days ago`,
+      daysAgo,
+      publishedAgo: `${daysAgo} days ago`,
       thumbUrl: `https://picsum.photos/seed/${encodeURIComponent(thumbSeed)}/480/270`,
       avatarUrl: avatarUrlFor(ch),
       videoUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(topicCap)}`
     });
   }
 
-  videos.sort((a, b) => b.outlier - a.outlier);
-
   return { keywords, titles, videos };
 }
 
 // ─── Helpers ───
-function generateGroundedTitles(topic, topVideos) {
+function generateGroundedTitles(topic) {
   const topicCap = topic.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-  const hooks = [
-    `I Tried ${topicCap} for 30 Days — Real Results`,
-    `Stop Making These Mistakes with ${topicCap}`,
-    `${topicCap}: Complete Guide for ${new Date().getFullYear()}`,
-    `Why ${topicCap} is Surging Right Now`,
-    `${topicCap} on a Budget — Tested & Ranked`,
-    `The Only ${topicCap} Video You Need`
+  return [
+    { title: `I Tried ${topicCap} for 30 Days — Real Results`, context: `Challenge hook — mirrors recent high-VPH breakout video structures.`, score: 95 },
+    { title: `Stop Making These Mistakes with ${topicCap}`, context: `Negative hook — addresses common failure points in top search results.`, score: 90 },
+    { title: `${topicCap}: Complete Guide for ${new Date().getFullYear()}`, context: `Evergreen setup — targets ongoing YouTube search traffic.`, score: 85 },
+    { title: `Why ${topicCap} is Surging Right Now`, context: `Trending analysis pattern — triggers curiosity in browse feeds.`, score: 80 },
+    { title: `${topicCap} on a Budget — Tested & Ranked`, context: `Budget comparison — attracts high-intent buyers and decision makers.`, score: 75 },
+    { title: `The Only ${topicCap} Video You Need`, context: `Definitive title pattern — positions content as the single best resource.`, score: 70 }
   ];
-  const contexts = [
-    `Challenge hook — mirrors recent high-VPH breakout video structures.`,
-    `Negative hook — addresses common failure points in top search results.`,
-    `Evergreen setup — targets ongoing YouTube search traffic.`,
-    `Trending analysis pattern — triggers curiosity in browse feeds.`,
-    `Budget comparison — attracts high-intent buyers and decision makers.`,
-    `Definitive title pattern — positions content as the single best resource.`
-  ];
-
-  return hooks.map((title, i) => ({
-    title,
-    context: contexts[i],
-    score: Math.max(50, 95 - i * 5)
-  }));
 }
 
 function avatarUrlFor(channelName) {
@@ -598,6 +667,12 @@ function escapeHtml(str) {
 function formatNumber(n) {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 1_000)     return (n / 1_000).toFixed(1) + 'K';
+  return n.toString();
+}
+
+function formatShortNum(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(0) + 'M';
+  if (n >= 1_000)     return (n / 1_000).toFixed(0) + 'K';
   return n.toString();
 }
 
