@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="YouTube Video Idea Generator — discover trending topics, breakout videos, and high-scoring title ideas from small creators.">
+  <title>IdeaEngine — YouTube Video Idea Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ─── Header ─── -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="logo">
+        <svg class="logo-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+        <span class="logo-text">IdeaEngine</span>
+      </div>
+      <p class="header-tagline">Find breakout video ideas from small creators — not celebrity noise</p>
+    </div>
+  </header>
+
+  <!-- ─── Main ─── -->
+  <main class="main-content">
+
+    <!-- Search Section -->
+    <section class="search-section" id="search-section">
+      <div class="search-box">
+        <div class="search-input-wrapper">
+          <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+          </svg>
+          <input
+            type="text"
+            id="topic-input"
+            class="search-input"
+            placeholder="Enter a topic — e.g. &quot;home office setup&quot;, &quot;meal prep&quot;, &quot;budget travel&quot;"
+            autocomplete="off"
+          >
+          <button id="generate-btn" class="generate-btn">
+            <svg class="btn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            Generate Ideas
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter Chips -->
+      <div class="filter-row" id="filter-row">
+        <div class="filter-group">
+          <span class="filter-label">Channel Size Cap</span>
+          <div class="chip-set" id="sub-cap-chips">
+            <button class="chip active" data-value="100000">Under 100K</button>
+            <button class="chip" data-value="500000">Under 500K</button>
+            <button class="chip" data-value="1000000">Under 1M</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Time Window</span>
+          <div class="chip-set" id="time-window-chips">
+            <button class="chip" data-value="30">30 days</button>
+            <button class="chip active" data-value="90">90 days</button>
+            <button class="chip" data-value="180">6 months</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">VPH Direction</span>
+          <div class="chip-set" id="vph-direction-chips">
+            <button class="chip active" data-value="rising">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              Rising
+            </button>
+            <button class="chip" data-value="all">All</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Loading State -->
+    <div class="loading-state" id="loading-state">
+      <div class="loader-ring">
+        <div></div><div></div><div></div><div></div>
+      </div>
+      <p class="loading-text">Scanning breakout videos &amp; scoring titles…</p>
+      <p class="loading-sub" id="loading-sub-text">Filtering channels under 100K subs</p>
+    </div>
+
+    <!-- Results Container -->
+    <div class="results-container" id="results-container">
+
+      <!-- Keyword Insights -->
+      <section class="section keyword-section" id="keyword-section">
+        <h2 class="section-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/>
+          </svg>
+          Keyword Insights
+        </h2>
+        <div class="keyword-cards" id="keyword-cards">
+          <!-- JS fills -->
+        </div>
+      </section>
+
+      <!-- Generated Titles -->
+      <section class="section titles-section" id="titles-section">
+        <h2 class="section-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          Generated Title Ideas
+        </h2>
+        <p class="section-subtitle">Scored titles based on breakout patterns from real videos</p>
+        <div class="titles-list" id="titles-list">
+          <!-- JS fills -->
+        </div>
+      </section>
+
+      <!-- Top 5 Videos to Study -->
+      <section class="section study-section" id="study-section">
+        <h2 class="section-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/>
+          </svg>
+          Top 5 Videos to Study
+        </h2>
+        <p class="section-subtitle">Compare editing style, hooks, and packaging from real breakout creators</p>
+        <div class="video-grid" id="video-grid">
+          <!-- JS fills -->
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon-wrapper">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+        </svg>
+      </div>
+      <h3 class="empty-title">Enter a topic to start</h3>
+      <p class="empty-desc">Type any niche, topic, or keyword above and hit <strong>Generate Ideas</strong> to discover breakout video patterns from small creators.</p>
+      <div class="example-topics">
+        <span class="example-label">Try:</span>
+        <button class="example-chip" data-topic="home office setup">home office setup</button>
+        <button class="example-chip" data-topic="meal prep for beginners">meal prep for beginners</button>
+        <button class="example-chip" data-topic="budget travel tips">budget travel tips</button>
+        <button class="example-chip" data-topic="iphone photography">iphone photography</button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <p>IdeaEngine — Data-driven video ideas from small-creator breakouts</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
