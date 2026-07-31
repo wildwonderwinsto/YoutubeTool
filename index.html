@@ -54,7 +54,7 @@
   <!-- ─── Main ─── -->
   <main class="main-content">
 
-    <!-- Search & Control Toolbar Section -->
+    <!-- Search Section -->
     <section class="search-section" id="search-section">
       <div class="search-eyebrow">
         <span id="scan-mode-indicator" class="scan-mode-tag">Deterministic Engine</span>
@@ -81,113 +81,111 @@
         </div>
       </div>
 
-      <!-- Professional Control Bar (Sort, Quick Presets, Filter Drawer Toggle) -->
-      <div class="control-bar">
-        <div class="control-left">
-          <span class="control-label">Quick Presets:</span>
-          <div class="preset-chips">
-            <button class="preset-chip active" data-preset="small-creators">Under 100K Subs</button>
-            <button class="preset-chip" data-preset="high-velocity">High VPH Velocity</button>
-            <button class="preset-chip" data-preset="micro-creators">Under 25K Subs</button>
-            <button class="preset-chip" data-preset="fresh-breakouts">Fresh (< 30d)</button>
-          </div>
-        </div>
+      <!-- Professional Minimalist Control Bar (Sort Dropdown Button & Filter Modal Button) -->
+      <div class="pro-control-bar">
+        <div class="pro-control-right">
+          <!-- Sort Dropdown Button -->
+          <div class="pro-dropdown-wrapper">
+            <button id="sort-dropdown-btn" class="pro-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+              <span>Sort: <strong id="current-sort-label">Outlier Score</strong></span>
+              <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
 
-        <div class="control-right">
-          <!-- Sort Dropdown -->
-          <div class="sort-wrapper">
-            <label for="sort-select" class="control-label">Sort By:</label>
-            <select id="sort-select" class="sort-select">
-              <option value="outlier">Outlier Score (High → Low)</option>
-              <option value="vph">VPH Velocity (Fastest → Slowest)</option>
-              <option value="views">Total Views (Most → Least)</option>
-              <option value="newest">Published Date (Newest First)</option>
-            </select>
+            <!-- Sort Dropdown Menu -->
+            <div id="sort-menu" class="sort-menu hidden">
+              <button class="sort-item active" data-sort="outlier">
+                <span>Outlier Score</span>
+                <span class="sort-sub">Highest relative breakout multiplier</span>
+              </button>
+              <button class="sort-item" data-sort="vph">
+                <span>VPH Velocity</span>
+                <span class="sort-sub">Fastest real-time views per hour</span>
+              </button>
+              <button class="sort-item" data-sort="views">
+                <span>Total Views</span>
+                <span class="sort-sub">Highest cumulative view count</span>
+              </button>
+              <button class="sort-item" data-sort="newest">
+                <span>Publish Date</span>
+                <span class="sort-sub">Most recently published videos</span>
+              </button>
+            </div>
           </div>
 
-          <!-- Advanced Filter Drawer Toggle Button -->
-          <button id="filter-drawer-toggle" class="filter-drawer-toggle">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          <!-- Filter Window Button -->
+          <button id="filter-modal-open-btn" class="pro-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
             <span>Filters</span>
             <span id="active-filter-badge" class="active-filter-badge">3</span>
           </button>
         </div>
       </div>
 
-      <!-- Advanced Professional Filter Drawer -->
-      <div id="filter-drawer" class="filter-drawer hidden">
-        <div class="drawer-header">
-          <h3 class="drawer-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-            Advanced Signal Filters
-          </h3>
-          <button id="close-drawer-btn" class="close-drawer-btn">&times;</button>
+    </section>
+
+    <!-- Filter Settings Mini Window (Modal Overlay) -->
+    <div id="filter-modal-backdrop" class="filter-modal-backdrop hidden">
+      <div class="filter-mini-window">
+        <div class="mini-window-header">
+          <div class="mini-window-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            <span>Signal Filters &amp; Parameters</span>
+          </div>
+          <button id="filter-modal-close-btn" class="modal-close-btn">&times;</button>
         </div>
 
-        <div class="drawer-grid">
-          <!-- Subscribers Range -->
-          <div class="filter-card">
-            <div class="filter-card-header">
-              <label class="filter-card-label">Subscribers Range</label>
-              <span class="filter-card-val" id="subs-val-display">0 – 100K</span>
+        <div class="mini-window-body">
+          
+          <!-- Subscribers Range Slider -->
+          <div class="slider-group">
+            <div class="slider-header">
+              <label class="slider-label">Max Channel Subscribers</label>
+              <span class="slider-val" id="max-subs-val">100K subs</span>
             </div>
-            <div class="range-inputs">
-              <div class="range-field">
-                <span class="field-tag">Min</span>
-                <input type="number" id="min-subs-input" value="0" min="0" max="10000000" step="1000">
-              </div>
-              <div class="range-sep">–</div>
-              <div class="range-field">
-                <span class="field-tag">Max</span>
-                <input type="number" id="max-subs-input" value="100000" min="1000" max="10000000" step="5000">
-              </div>
+            <input type="range" id="max-subs-slider" class="pro-slider" min="5000" max="1000000" step="5000" value="100000">
+            <div class="slider-ticks">
+              <span>5K</span>
+              <span>100K</span>
+              <span>500K</span>
+              <span>1M (All)</span>
             </div>
           </div>
 
-          <!-- Time Window / Age Range -->
-          <div class="filter-card">
-            <div class="filter-card-header">
-              <label class="filter-card-label">Publish Window (Days)</label>
-              <span class="filter-card-val" id="days-val-display">0 – 90 days</span>
+          <!-- Publish Window Slider (Days) -->
+          <div class="slider-group">
+            <div class="slider-header">
+              <label class="slider-label">Max Video Age (Days)</label>
+              <span class="slider-val" id="max-days-val">90 days</span>
             </div>
-            <div class="range-inputs">
-              <div class="range-field">
-                <span class="field-tag">Min Days</span>
-                <input type="number" id="min-days-input" value="0" min="0" max="365">
-              </div>
-              <div class="range-sep">–</div>
-              <div class="range-field">
-                <span class="field-tag">Max Days</span>
-                <input type="number" id="max-days-input" value="90" min="1" max="365">
-              </div>
+            <input type="range" id="max-days-slider" class="pro-slider" min="7" max="180" step="1" value="90">
+            <div class="slider-ticks">
+              <span>7d</span>
+              <span>30d</span>
+              <span>90d</span>
+              <span>180d</span>
             </div>
           </div>
 
-          <!-- Views Range -->
-          <div class="filter-card">
-            <div class="filter-card-header">
-              <label class="filter-card-label">Views Range</label>
-              <span class="filter-card-val" id="views-val-display">1K – Any</span>
+          <!-- Min Views Slider -->
+          <div class="slider-group">
+            <div class="slider-header">
+              <label class="slider-label">Min Video Views</label>
+              <span class="slider-val" id="min-views-val">10K views</span>
             </div>
-            <div class="range-inputs">
-              <div class="range-field">
-                <span class="field-tag">Min Views</span>
-                <input type="number" id="min-views-input" value="1000" min="0" max="100000000" step="1000">
-              </div>
-              <div class="range-sep">–</div>
-              <div class="range-field">
-                <span class="field-tag">Max Views</span>
-                <input type="number" id="max-views-input" value="10000000" min="1000" max="100000000" step="50000" placeholder="Any">
-              </div>
+            <input type="range" id="min-views-slider" class="pro-slider" min="1000" max="250000" step="1000" value="10000">
+            <div class="slider-ticks">
+              <span>1K</span>
+              <span>10K</span>
+              <span>50K</span>
+              <span>250K</span>
             </div>
           </div>
 
-          <!-- Min Outlier Multiplier -->
-          <div class="filter-card">
-            <div class="filter-card-header">
-              <label class="filter-card-label">Min Outlier Multiplier</label>
-            </div>
-            <select id="min-outlier-select" class="filter-select">
+          <!-- Min Outlier Multiplier Dropdown -->
+          <div class="modal-field-group">
+            <label class="modal-field-label">Min Outlier Multiplier</label>
+            <select id="min-outlier-select" class="modal-select">
               <option value="1">All Videos (1x+)</option>
               <option value="2" selected>🔵 2x+ Outlier (Above Normal)</option>
               <option value="5">🟣 5x+ Breakout (Significant)</option>
@@ -195,24 +193,23 @@
             </select>
           </div>
 
-          <!-- VPH Direction -->
-          <div class="filter-card">
-            <div class="filter-card-header">
-              <label class="filter-card-label">VPH Velocity Trajectory</label>
-            </div>
+          <!-- VPH Trajectory Switch -->
+          <div class="modal-field-group">
+            <label class="modal-field-label">VPH Velocity Trajectory</label>
             <div class="segmented-control" id="vph-segmented">
               <button class="seg-btn active" data-vph="rising">↑ Rising Only</button>
               <button class="seg-btn" data-vph="all">All Trends</button>
             </div>
           </div>
+
         </div>
 
-        <div class="drawer-actions">
-          <button id="reset-filters-btn" class="reset-filters-btn">Reset Defaults</button>
-          <button id="apply-filters-btn" class="apply-filters-btn">Apply Filters</button>
+        <div class="mini-window-footer">
+          <button id="reset-filters-btn" class="reset-btn">Reset Defaults</button>
+          <button id="apply-filters-btn" class="apply-btn">Apply &amp; Scan</button>
         </div>
       </div>
-    </section>
+    </div>
 
     <!-- Loading State -->
     <div class="loading-state" id="loading-state">

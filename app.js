@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════
-   IdeaEngine — Application Logic (v3.0)
-   - Professional Granular Filters (Min/Max Subs, Days, Views, Outliers)
-   - Dynamic Sorting (Outlier, VPH, Views, Newest)
-   - Quick Presets & Filter Drawer
+   IdeaEngine — Application Logic (v4.0)
+   - Professional Sort Dropdown Button & Menu
+   - Filter Settings Mini Window Modal
+   - Interactive Range Sliders (Subscribers, Days, Views)
    ═══════════════════════════════════════════════ */
 
 // ─── DOM References ───
@@ -27,45 +27,50 @@ const clearApiKeyBtn      = document.getElementById('clear-api-key-btn');
 const apiModeBadge        = document.getElementById('api-mode-badge');
 const scanModeIndicator   = document.getElementById('scan-mode-indicator');
 
-// Filter & Sort DOM
-const sortSelect          = document.getElementById('sort-select');
-const filterDrawerToggle  = document.getElementById('filter-drawer-toggle');
-const activeFilterBadge   = document.getElementById('active-filter-badge');
-const filterDrawer        = document.getElementById('filter-drawer');
-const closeDrawerBtn      = document.getElementById('close-drawer-btn');
+// Control Bar & Sort Dropdown DOM
+const sortDropdownBtn     = document.getElementById('sort-dropdown-btn');
+const currentSortLabel    = document.getElementById('current-sort-label');
+const sortMenu            = document.getElementById('sort-menu');
 
-const minSubsInput        = document.getElementById('min-subs-input');
-const maxSubsInput        = document.getElementById('max-subs-input');
-const minDaysInput        = document.getElementById('min-days-input');
-const maxDaysInput        = document.getElementById('max-days-input');
-const minViewsInput       = document.getElementById('min-views-input');
-const maxViewsInput       = document.getElementById('max-views-input');
+// Filter Modal Window DOM
+const filterModalOpenBtn  = document.getElementById('filter-modal-open-btn');
+const activeFilterBadge   = document.getElementById('active-filter-badge');
+const filterModalBackdrop = document.getElementById('filter-modal-backdrop');
+const filterModalCloseBtn = document.getElementById('filter-modal-close-btn');
+
+// Slider & Filter Controls
+const maxSubsSlider       = document.getElementById('max-subs-slider');
+const maxSubsVal          = document.getElementById('max-subs-val');
+const maxDaysSlider       = document.getElementById('max-days-slider');
+const maxDaysVal          = document.getElementById('max-days-val');
+const minViewsSlider      = document.getElementById('min-views-slider');
+const minViewsVal         = document.getElementById('min-views-val');
+
 const minOutlierSelect    = document.getElementById('min-outlier-select');
 const vphSegmented        = document.getElementById('vph-segmented');
 
-const subsValDisplay      = document.getElementById('subs-val-display');
-const daysValDisplay      = document.getElementById('days-val-display');
-const viewsValDisplay     = document.getElementById('views-val-display');
-
 const resetFiltersBtn     = document.getElementById('reset-filters-btn');
 const applyFiltersBtn     = document.getElementById('apply-filters-btn');
-const presetChips         = document.querySelectorAll('.preset-chip');
 
 // ─── Filter & Sort State ───
 const defaultFilters = {
-  minSubs: 0,
   maxSubs: 100000,
-  minDays: 0,
   maxDays: 90,
-  minViews: 1000,
-  maxViews: 10000000,
+  minViews: 10000,
   minOutlier: 2,
   vphDirection: 'rising',
   sortBy: 'outlier'
 };
 
+const sortLabels = {
+  outlier: 'Outlier Score',
+  vph: 'VPH Velocity',
+  views: 'Total Views',
+  newest: 'Publish Date'
+};
+
 let activeFilters = { ...defaultFilters };
-let lastRawData = null; // Cache last scan results so sort/filter applies instantly!
+let lastRawData = null;
 let userApiKey = localStorage.getItem('ideaengine_yt_apikey') || '';
 
 // ─── API Key UI Management ───
@@ -107,86 +112,68 @@ clearApiKeyBtn.addEventListener('click', () => {
 
 updateApiKeyUI();
 
-// ─── Drawer & Filter Controls ───
-filterDrawerToggle.addEventListener('click', () => {
-  filterDrawer.classList.toggle('hidden');
-  filterDrawerToggle.classList.toggle('active', !filterDrawer.classList.contains('hidden'));
+// ─── Sort Dropdown Logic ───
+sortDropdownBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  sortMenu.classList.toggle('hidden');
+  sortDropdownBtn.classList.toggle('active', !sortMenu.classList.contains('hidden'));
 });
 
-closeDrawerBtn.addEventListener('click', () => {
-  filterDrawer.classList.add('hidden');
-  filterDrawerToggle.classList.remove('active');
+document.addEventListener('click', (e) => {
+  if (!sortMenu.contains(e.target) && !sortDropdownBtn.contains(e.target)) {
+    sortMenu.classList.add('hidden');
+    sortDropdownBtn.classList.remove('active');
+  }
 });
 
-// Update Filter Card Text Displays
-function updateDisplayLabels() {
-  subsValDisplay.textContent = `${formatShortNum(activeFilters.minSubs)} – ${formatShortNum(activeFilters.maxSubs)}`;
-  daysValDisplay.textContent = `${activeFilters.minDays} – ${activeFilters.maxDays} days`;
-  viewsValDisplay.textContent = `${formatShortNum(activeFilters.minViews)} – ${activeFilters.maxViews >= 10000000 ? 'Any' : formatShortNum(activeFilters.maxViews)}`;
-  
-  // Calculate active filter count badge
-  let count = 0;
-  if (activeFilters.minSubs > 0 || activeFilters.maxSubs < 10000000) count++;
-  if (activeFilters.minDays > 0 || activeFilters.maxDays < 365) count++;
-  if (activeFilters.minViews > 0 || activeFilters.maxViews < 10000000) count++;
-  if (activeFilters.minOutlier > 1) count++;
-  if (activeFilters.vphDirection === 'rising') count++;
-  
-  activeFilterBadge.textContent = count;
-}
-
-// Preset Chips
-presetChips.forEach(chip => {
-  chip.addEventListener('click', () => {
-    presetChips.forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
-
-    const preset = chip.dataset.preset;
-    if (preset === 'small-creators') {
-      activeFilters.minSubs = 0;
-      activeFilters.maxSubs = 100000;
-    } else if (preset === 'micro-creators') {
-      activeFilters.minSubs = 0;
-      activeFilters.maxSubs = 25000;
-    } else if (preset === 'high-velocity') {
-      activeFilters.vphDirection = 'rising';
-      activeFilters.minOutlier = 5;
-    } else if (preset === 'fresh-breakouts') {
-      activeFilters.minDays = 0;
-      activeFilters.maxDays = 30;
-      activeFilters.minOutlier = 2;
-    }
-
-    syncInputsFromState();
-    updateDisplayLabels();
+sortMenu.querySelectorAll('.sort-item').forEach(item => {
+  item.addEventListener('click', () => {
+    sortMenu.querySelectorAll('.sort-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    
+    activeFilters.sortBy = item.dataset.sort;
+    currentSortLabel.textContent = sortLabels[activeFilters.sortBy];
+    sortMenu.classList.add('hidden');
+    sortDropdownBtn.classList.remove('active');
+    
     if (lastRawData) applyFilterAndSortAndRender();
   });
 });
 
-function syncStateFromInputs() {
-  activeFilters.minSubs = parseInt(minSubsInput.value, 10) || 0;
-  activeFilters.maxSubs = parseInt(maxSubsInput.value, 10) || 10000000;
-  activeFilters.minDays = parseInt(minDaysInput.value, 10) || 0;
-  activeFilters.maxDays = parseInt(maxDaysInput.value, 10) || 365;
-  activeFilters.minViews = parseInt(minViewsInput.value, 10) || 0;
-  activeFilters.maxViews = parseInt(maxViewsInput.value, 10) || 100000000;
-  activeFilters.minOutlier = parseFloat(minOutlierSelect.value) || 1;
+// ─── Filter Settings Modal Logic ───
+filterModalOpenBtn.addEventListener('click', () => {
+  filterModalBackdrop.classList.remove('hidden');
+  filterModalOpenBtn.classList.add('active');
+});
+
+filterModalCloseBtn.addEventListener('click', closeFilterModal);
+
+filterModalBackdrop.addEventListener('click', (e) => {
+  if (e.target === filterModalBackdrop) closeFilterModal();
+});
+
+function closeFilterModal() {
+  filterModalBackdrop.classList.add('hidden');
+  filterModalOpenBtn.classList.remove('active');
 }
 
-function syncInputsFromState() {
-  minSubsInput.value = activeFilters.minSubs;
-  maxSubsInput.value = activeFilters.maxSubs;
-  minDaysInput.value = activeFilters.minDays;
-  maxDaysInput.value = activeFilters.maxDays;
-  minViewsInput.value = activeFilters.minViews;
-  maxViewsInput.value = activeFilters.maxViews;
-  minOutlierSelect.value = activeFilters.minOutlier;
-  
-  vphSegmented.querySelectorAll('.seg-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.vph === activeFilters.vphDirection);
-  });
-}
+// Interactive Sliders Event Listeners
+maxSubsSlider.addEventListener('input', () => {
+  const val = parseInt(maxSubsSlider.value, 10);
+  maxSubsVal.textContent = val >= 1000000 ? '1M (All)' : formatShortNum(val) + ' subs';
+});
 
+maxDaysSlider.addEventListener('input', () => {
+  const val = parseInt(maxDaysSlider.value, 10);
+  maxDaysVal.textContent = val + ' days';
+});
+
+minViewsSlider.addEventListener('input', () => {
+  const val = parseInt(minViewsSlider.value, 10);
+  minViewsVal.textContent = formatShortNum(val) + ' views';
+});
+
+// Segmented VPH Control
 vphSegmented.addEventListener('click', e => {
   const btn = e.target.closest('.seg-btn');
   if (!btn) return;
@@ -195,23 +182,51 @@ vphSegmented.addEventListener('click', e => {
   activeFilters.vphDirection = btn.dataset.vph;
 });
 
-sortSelect.addEventListener('change', () => {
-  activeFilters.sortBy = sortSelect.value;
-  if (lastRawData) applyFilterAndSortAndRender();
-});
+// Sync State from Modal Sliders
+function syncStateFromModal() {
+  activeFilters.maxSubs = parseInt(maxSubsSlider.value, 10);
+  activeFilters.maxDays = parseInt(maxDaysSlider.value, 10);
+  activeFilters.minViews = parseInt(minViewsSlider.value, 10);
+  activeFilters.minOutlier = parseFloat(minOutlierSelect.value);
+
+  // Update badge count
+  let count = 0;
+  if (activeFilters.maxSubs < 1000000) count++;
+  if (activeFilters.maxDays < 180) count++;
+  if (activeFilters.minViews > 1000) count++;
+  if (activeFilters.minOutlier > 1) count++;
+  if (activeFilters.vphDirection === 'rising') count++;
+  
+  activeFilterBadge.textContent = count;
+}
+
+function syncModalFromState() {
+  maxSubsSlider.value = activeFilters.maxSubs;
+  maxSubsVal.textContent = activeFilters.maxSubs >= 1000000 ? '1M (All)' : formatShortNum(activeFilters.maxSubs) + ' subs';
+  
+  maxDaysSlider.value = activeFilters.maxDays;
+  maxDaysVal.textContent = activeFilters.maxDays + ' days';
+
+  minViewsSlider.value = activeFilters.minViews;
+  minViewsVal.textContent = formatShortNum(activeFilters.minViews) + ' views';
+
+  minOutlierSelect.value = activeFilters.minOutlier;
+
+  vphSegmented.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.vph === activeFilters.vphDirection);
+  });
+}
 
 applyFiltersBtn.addEventListener('click', () => {
-  syncStateFromInputs();
-  updateDisplayLabels();
-  filterDrawer.classList.add('hidden');
-  filterDrawerToggle.classList.remove('active');
+  syncStateFromModal();
+  closeFilterModal();
   if (lastRawData) applyFilterAndSortAndRender();
 });
 
 resetFiltersBtn.addEventListener('click', () => {
   activeFilters = { ...defaultFilters };
-  syncInputsFromState();
-  updateDisplayLabels();
+  syncModalFromState();
+  syncStateFromModal();
   if (lastRawData) applyFilterAndSortAndRender();
 });
 
@@ -237,8 +252,7 @@ async function runGenerate() {
     return;
   }
 
-  syncStateFromInputs();
-  updateDisplayLabels();
+  syncStateFromModal();
 
   emptyState.classList.add('hidden');
   resultsContainer.classList.remove('visible');
@@ -268,7 +282,7 @@ async function runGenerate() {
       applyFilterAndSortAndRender();
       loadingState.classList.remove('visible');
       resultsContainer.classList.add('visible');
-    }, 500);
+    }, 450);
   }
 }
 
@@ -276,11 +290,10 @@ async function runGenerate() {
 function applyFilterAndSortAndRender() {
   if (!lastRawData) return;
 
-  // Filter video list based on activeFilters
   let filtered = lastRawData.videos.filter(v => {
-    if (v.rawSubs < activeFilters.minSubs || v.rawSubs > activeFilters.maxSubs) return false;
-    if (v.daysAgo < activeFilters.minDays || v.daysAgo > activeFilters.maxDays) return false;
-    if (v.rawViews < activeFilters.minViews || v.rawViews > activeFilters.maxViews) return false;
+    if (v.rawSubs > activeFilters.maxSubs) return false;
+    if (v.daysAgo > activeFilters.maxDays) return false;
+    if (v.rawViews < activeFilters.minViews) return false;
     if (v.outlier < activeFilters.minOutlier) return false;
     if (activeFilters.vphDirection === 'rising' && v.vphDirection !== 'rising') return false;
     return true;
@@ -356,7 +369,7 @@ function renderVideos(videos) {
     videoGrid.innerHTML = `
       <div style="grid-column: 1 / -1; padding: 48px; text-align: center; color: var(--paper-mute); background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius-lg);">
         <p style="font-family: var(--font-display); font-size: 1rem; margin-bottom: 8px; color: var(--paper);">No videos match your active filter criteria</p>
-        <p style="font-size: 0.8125rem;">Try adjusting subscriber limits, days window, or clicking <strong>Reset Defaults</strong>.</p>
+        <p style="font-size: 0.8125rem;">Try adjusting subscriber, age, or view sliders in the <strong>Filters</strong> window.</p>
       </div>
     `;
     return;
@@ -430,7 +443,7 @@ function getVphBadge(vph, direction) {
 // ─── LIVE YOUTUBE API V3 INTEGRATION ───
 async function fetchLiveYouTubeData(topic, filters, apiKey) {
   const publishedAfterDate = new Date();
-  publishedAfterDate.setDate(publishedAfterDate.getDate() - 180); // Fetch up to 180 days for client filtering
+  publishedAfterDate.setDate(publishedAfterDate.getDate() - 180);
   const publishedAfterIso = publishedAfterDate.toISOString();
 
   const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(topic)}&type=video&publishedAfter=${publishedAfterIso}&maxResults=50&key=${apiKey}`;
@@ -594,7 +607,6 @@ function generateDeterministicData(topic) {
     score: Math.max(50, 95 - i * 5)
   }));
 
-  // Pool of 24 Videos spanning broad subcounts, days, views, and outliers
   const channelPool = [
     'SimpleTech', 'The Curious Creator', 'LifeWithMike', 'MinimalMind', 'DailyDose',
     'Alex Explains', 'ProTips Daily', 'Real Talk with Sam', 'The Side Project', 'NerdNest',
