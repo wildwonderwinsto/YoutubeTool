@@ -81,7 +81,7 @@
         </div>
       </div>
 
-      <!-- Professional Minimalist Control Bar (Sort Dropdown Button & Filter Modal Button) -->
+      <!-- Control Bar (Sort Dropdown Button & Filter Modal Button) -->
       <div class="pro-control-bar">
         <div class="pro-control-right">
           <!-- Sort Dropdown Button -->
@@ -117,7 +117,7 @@
           <button id="filter-modal-open-btn" class="pro-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
             <span>Filters</span>
-            <span id="active-filter-badge" class="active-filter-badge">3</span>
+            <span id="active-filter-badge" class="active-filter-badge">0</span>
           </button>
         </div>
       </div>
@@ -137,18 +137,19 @@
 
         <div class="mini-window-body">
           
-          <!-- Subscribers Range Slider -->
+          <!-- Subscribers Range Slider (Mapped Step Points) -->
           <div class="slider-group">
             <div class="slider-header">
               <label class="slider-label">Max Channel Subscribers</label>
               <span class="slider-val" id="max-subs-val">100K subs</span>
             </div>
-            <input type="range" id="max-subs-slider" class="pro-slider" min="5000" max="1000000" step="5000" value="100000">
+            <input type="range" id="max-subs-slider" class="pro-slider" min="0" max="7" step="1" value="4">
             <div class="slider-ticks">
-              <span>5K</span>
-              <span>100K</span>
-              <span>500K</span>
-              <span>1M (All)</span>
+              <span style="left:0%">0</span>
+              <span style="left:28.5%">25K</span>
+              <span style="left:57.1%">100K</span>
+              <span style="left:71.4%">500K</span>
+              <span style="left:100%">1M+</span>
             </div>
           </div>
 
@@ -158,12 +159,12 @@
               <label class="slider-label">Max Video Age (Days)</label>
               <span class="slider-val" id="max-days-val">90 days</span>
             </div>
-            <input type="range" id="max-days-slider" class="pro-slider" min="7" max="180" step="1" value="90">
+            <input type="range" id="max-days-slider" class="pro-slider" min="0" max="6" step="1" value="4">
             <div class="slider-ticks">
-              <span>7d</span>
-              <span>30d</span>
-              <span>90d</span>
-              <span>180d</span>
+              <span style="left:0%">7d</span>
+              <span style="left:33.3%">30d</span>
+              <span style="left:66.6%">90d</span>
+              <span style="left:100%">180d</span>
             </div>
           </div>
 
@@ -173,12 +174,13 @@
               <label class="slider-label">Min Video Views</label>
               <span class="slider-val" id="min-views-val">10K views</span>
             </div>
-            <input type="range" id="min-views-slider" class="pro-slider" min="1000" max="250000" step="1000" value="10000">
+            <input type="range" id="min-views-slider" class="pro-slider" min="0" max="7" step="1" value="3">
             <div class="slider-ticks">
-              <span>1K</span>
-              <span>10K</span>
-              <span>50K</span>
-              <span>250K</span>
+              <span style="left:0%">0</span>
+              <span style="left:28.5%">5K</span>
+              <span style="left:57.1%">25K</span>
+              <span style="left:71.4%">100K</span>
+              <span style="left:100%">500K+</span>
             </div>
           </div>
 

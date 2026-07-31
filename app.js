@@ -1,8 +1,7 @@
 /* ═══════════════════════════════════════════════
-   IdeaEngine — Application Logic (v4.0)
-   - Professional Sort Dropdown Button & Menu
-   - Filter Settings Mini Window Modal
-   - Interactive Range Sliders (Subscribers, Days, Views)
+   IdeaEngine — Application Logic (v4.1)
+   - Precision Discrete Step Mappings for Sliders
+   - 100% Alignment between thumb, label, and filter state
    ═══════════════════════════════════════════════ */
 
 // ─── DOM References ───
@@ -51,6 +50,11 @@ const vphSegmented        = document.getElementById('vph-segmented');
 
 const resetFiltersBtn     = document.getElementById('reset-filters-btn');
 const applyFiltersBtn     = document.getElementById('apply-filters-btn');
+
+// ─── DISCRETE STEP MAPPINGS (Guarantees Slider & Tick Alignment) ───
+const SUB_STEPS = [0, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
+const DAY_STEPS = [7, 14, 30, 60, 90, 120, 180];
+const VIEW_STEPS = [0, 1000, 5000, 10000, 25000, 50000, 100000, 250000];
 
 // ─── Filter & Sort State ───
 const defaultFilters = {
@@ -157,20 +161,23 @@ function closeFilterModal() {
   filterModalOpenBtn.classList.remove('active');
 }
 
-// Interactive Sliders Event Listeners
+// Interactive Slider Handlers with Mapped Step Values
 maxSubsSlider.addEventListener('input', () => {
-  const val = parseInt(maxSubsSlider.value, 10);
-  maxSubsVal.textContent = val >= 1000000 ? '1M (All)' : formatShortNum(val) + ' subs';
+  const stepIdx = parseInt(maxSubsSlider.value, 10);
+  const subVal = SUB_STEPS[stepIdx];
+  maxSubsVal.textContent = subVal >= 1000000 ? '1M+ (All)' : subVal === 0 ? '0 (No cap)' : formatShortNum(subVal) + ' subs';
 });
 
 maxDaysSlider.addEventListener('input', () => {
-  const val = parseInt(maxDaysSlider.value, 10);
-  maxDaysVal.textContent = val + ' days';
+  const stepIdx = parseInt(maxDaysSlider.value, 10);
+  const dayVal = DAY_STEPS[stepIdx];
+  maxDaysVal.textContent = dayVal + ' days';
 });
 
 minViewsSlider.addEventListener('input', () => {
-  const val = parseInt(minViewsSlider.value, 10);
-  minViewsVal.textContent = formatShortNum(val) + ' views';
+  const stepIdx = parseInt(minViewsSlider.value, 10);
+  const viewVal = VIEW_STEPS[stepIdx];
+  minViewsVal.textContent = viewVal === 0 ? '0 (Any)' : formatShortNum(viewVal) + ' views';
 });
 
 // Segmented VPH Control
@@ -182,18 +189,24 @@ vphSegmented.addEventListener('click', e => {
   activeFilters.vphDirection = btn.dataset.vph;
 });
 
-// Sync State from Modal Sliders
+// Sync State from Modal Controls
 function syncStateFromModal() {
-  activeFilters.maxSubs = parseInt(maxSubsSlider.value, 10);
-  activeFilters.maxDays = parseInt(maxDaysSlider.value, 10);
-  activeFilters.minViews = parseInt(minViewsSlider.value, 10);
+  const subIdx = parseInt(maxSubsSlider.value, 10);
+  activeFilters.maxSubs = SUB_STEPS[subIdx];
+
+  const dayIdx = parseInt(maxDaysSlider.value, 10);
+  activeFilters.maxDays = DAY_STEPS[dayIdx];
+
+  const viewIdx = parseInt(minViewsSlider.value, 10);
+  activeFilters.minViews = VIEW_STEPS[viewIdx];
+
   activeFilters.minOutlier = parseFloat(minOutlierSelect.value);
 
-  // Update badge count
+  // Calculate active non-default filter count badge
   let count = 0;
   if (activeFilters.maxSubs < 1000000) count++;
   if (activeFilters.maxDays < 180) count++;
-  if (activeFilters.minViews > 1000) count++;
+  if (activeFilters.minViews > 0) count++;
   if (activeFilters.minOutlier > 1) count++;
   if (activeFilters.vphDirection === 'rising') count++;
   
@@ -201,14 +214,22 @@ function syncStateFromModal() {
 }
 
 function syncModalFromState() {
-  maxSubsSlider.value = activeFilters.maxSubs;
-  maxSubsVal.textContent = activeFilters.maxSubs >= 1000000 ? '1M (All)' : formatShortNum(activeFilters.maxSubs) + ' subs';
-  
-  maxDaysSlider.value = activeFilters.maxDays;
-  maxDaysVal.textContent = activeFilters.maxDays + ' days';
+  // Find index for sub step
+  const subIdx = SUB_STEPS.indexOf(activeFilters.maxSubs);
+  maxSubsSlider.value = subIdx !== -1 ? subIdx : 4;
+  const subVal = SUB_STEPS[maxSubsSlider.value];
+  maxSubsVal.textContent = subVal >= 1000000 ? '1M+ (All)' : subVal === 0 ? '0 (No cap)' : formatShortNum(subVal) + ' subs';
 
-  minViewsSlider.value = activeFilters.minViews;
-  minViewsVal.textContent = formatShortNum(activeFilters.minViews) + ' views';
+  // Find index for day step
+  const dayIdx = DAY_STEPS.indexOf(activeFilters.maxDays);
+  maxDaysSlider.value = dayIdx !== -1 ? dayIdx : 4;
+  maxDaysVal.textContent = DAY_STEPS[maxDaysSlider.value] + ' days';
+
+  // Find index for view step
+  const viewIdx = VIEW_STEPS.indexOf(activeFilters.minViews);
+  minViewsSlider.value = viewIdx !== -1 ? viewIdx : 3;
+  const viewVal = VIEW_STEPS[minViewsSlider.value];
+  minViewsVal.textContent = viewVal === 0 ? '0 (Any)' : formatShortNum(viewVal) + ' views';
 
   minOutlierSelect.value = activeFilters.minOutlier;
 
@@ -282,7 +303,7 @@ async function runGenerate() {
       applyFilterAndSortAndRender();
       loadingState.classList.remove('visible');
       resultsContainer.classList.add('visible');
-    }, 450);
+    }, 400);
   }
 }
 
@@ -310,7 +331,7 @@ function applyFilterAndSortAndRender() {
     filtered.sort((a, b) => a.daysAgo - b.daysAgo);
   }
 
-  resultCountTag.textContent = `${filtered.length} videos found`;
+  resultCountTag.textContent = `${filtered.length} video${filtered.length === 1 ? '' : 's'} found`;
 
   renderKeywords(lastRawData.keywords);
   renderTitles(lastRawData.titles);

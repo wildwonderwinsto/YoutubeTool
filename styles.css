@@ -1,7 +1,6 @@
 /* ═══════════════════════════════════════════════
-   IdeaEngine — Design System & Styles (v4.0)
-   - Professional Minimalist Toolbar & Sort Dropdown
-   - Filter Settings Mini Window with Custom Sliders
+   IdeaEngine — Design System & Styles (v4.1)
+   - Slider Tick Precision Alignment & Accent Fill Track
    ═══════════════════════════════════════════════ */
 
 /* ─── CSS Variables (Design Tokens) ─── */
@@ -403,7 +402,7 @@ body::before {
 .generate-btn:active { transform: translateY(0); }
 .generate-btn .btn-icon { flex-shrink: 0; }
 
-/* ─── Professional Minimalist Control Bar ─── */
+/* ─── Professional Control Bar ─── */
 .pro-control-bar {
   display: flex;
   align-items: center;
@@ -594,11 +593,12 @@ body::before {
   overflow-y: auto;
 }
 
-/* Custom Range Sliders */
+/* Custom Range Sliders & Precision Ticks */
 .slider-group {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+  position: relative;
 }
 
 .slider-header {
@@ -632,6 +632,7 @@ body::before {
   background: var(--surface-hi);
   outline: none;
   cursor: pointer;
+  margin: 6px 0 2px 0;
 }
 
 .pro-slider::-webkit-slider-thumb {
@@ -644,19 +645,36 @@ body::before {
   cursor: pointer;
   box-shadow: 0 0 10px var(--signal-glow);
   transition: transform 0.1s ease;
+  position: relative;
+  z-index: 2;
 }
 
 .pro-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.15);
+  transform: scale(1.18);
 }
 
+/* Precision Ticks with Absolute Alignment */
 .slider-ticks {
-  display: flex;
-  justify-content: space-between;
+  position: relative;
+  width: 100%;
+  height: 16px;
   font-family: var(--font-mono);
   font-size: 0.625rem;
   color: var(--paper-mute);
-  margin-top: 2px;
+}
+
+.slider-ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.slider-ticks span:first-child {
+  transform: translateX(0);
+}
+
+.slider-ticks span:last-child {
+  transform: translateX(-100%);
 }
 
 /* Modal Field Groups */
